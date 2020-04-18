@@ -1,25 +1,28 @@
-## **Screening of primers for COVID19 with genome specificity and amplicons with stable RNA secondary structure**
+## **Screening of primers for COVID-19 with genome specificity and amplicons with stable RNA secondary structure**
 By Anibal Arce and Ignacio Ibarra
 
 ### Motivation
 ---------------------------------------------------------
 - Design and selection of primer combinations that specifically recognize target viruses is desirable for Molecular Biologists.
-- Filtering amplicons by formation of secondary structures is aids in the shortlisting of candidates for downstreams detection tools.
+- Filtering amplicons by formation of secondary structures aids in the shortlisting of candidates for downstreams detection tools.
 
 ### Solution
 ----------------
 
-This script:
-1. selects desirable primers for downstream selection.
-2. uses additional scores to filter them by (a) unwanted specificity with other viral genomes, and (b) amplicon secondary structure.
+This Python workflow:
+1. Selects desirable primers for downstream selection in the COVID-19 genome. Unwanted specificity with other viral genomes is checked. 
+2. Amplicon products obtained from primer pairs are checked for RNA secondary structure
+stability (reported as free energy and Z-scores).
 
 ### Workflow steps
-1. Primers are scanned against COVID19's GenBank entry (`--fastaid` to modify with custom fasta), 
+1. Primers are scanned against COVID-19's GenBank entry (`--fastaid` to modify with custom fasta), 
 and filtered by desirable %GC content rules, Tm and low duplex.
 2. Primers are scanned against 7 viral genomes selected to reduce amplification of untargeted viral genomes:
     - RSV, Ketapneumovirus, Parainfluenza 4a, Adenovirus E, Influenza B, Influenza A.
 3. Primers are grouped into pairs and filtered by amplicon lengths.
-4. Predicted RNA amplicons are assessed for RNA secondary structures using LinearFold [Huang et al. 2019](https://academic.oup.com/bioinformatics/article/35/14/i295/5529205)). Z-scores are calculated uses a regression model that corrects for the amplicon length, allowing interpretability of values.
+4. Predicted RNA amplicons are assessed for RNA secondary structures 
+using LinearFold [Huang et al. 2019](https://academic.oup.com/bioinformatics/article/35/14/i295/5529205)). 
+Z-scores are calculated uses a regression model that corrects for the amplicon length, allowing interpretability of values.
 
 #### Installation and running (typical time: less than 5 minutes)
 ```
