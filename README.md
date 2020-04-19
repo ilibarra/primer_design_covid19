@@ -52,7 +52,7 @@ python generate_primer_pairs.py --checkothers --overwrite1 --overwrite2 # full r
 ```
 
 ### Output
-- An Excel file called `output/FASTA_ID_pairs.xlsx` contains details for all shortlisted pairs selected by input criteria.
+- An Excel file called `output/FASTA_ID_pairs.xlsx` contains details for all shortlisted primer pairs and amplicons selected.
 - Check Z-scores for RNA-stability of primers and amplicons. More negative values are correlated with more stable RNA secondary structures.
     - You can visualize 2D-stable amplicon sequences using [NUPACK](http://www.nupack.org/partition/new). 
 
