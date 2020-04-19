@@ -1,4 +1,4 @@
-<img src="./about/jogl_logo.png" width="200px" height="300px" align="right">
+<img src="./about/jogl_logo.png" width="180px" height="250px" align="right">
 
 ## **Screening of primers for COVID-19 with genome specificity and amplicons with stable single-stranded RNA structure**
 By Anibal Arce and Ignacio Ibarra
@@ -45,9 +45,9 @@ Please include to `$PATH` or define path with `--linearfold`.
 python generate_primer_pairs.py --help # see help (fasta ID, gc content filter, min-max primer/amplicon lengths, etc.)
 # LOAD TESTS
 python generate_primer_pairs.py --ntest 100 --overwrite2 # test only with the first 100 primer pairs (run in 5 minutes).
-python generate_primer_pairs.py --ntest 1000 --overwrite2 # test only with the first 1000 pairs, and check for background viral genomes
+python generate_primer_pairs.py --ntest 1000 --overwrite2 # test only with the first 1000 pairs.
 # FULL RUN
-python generate_primer_pairs.py --overwrite2 # full run (checking RNA secondary structures)
+python generate_primer_pairs.py --overwrite2 # full run (checking RNA secondary structures).
 python generate_primer_pairs.py --checkothers --overwrite1 --overwrite2 # full run (checking against background viral genomes).
 ```
 
