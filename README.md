@@ -21,8 +21,9 @@ and filtered by desirable %GC content rules, Tm and low duplex.
     - RSV, Ketapneumovirus, Parainfluenza 4a, Adenovirus E, Influenza B, Influenza A.
 3. Primers are grouped into pairs and filtered by amplicon lengths.
 4. Predicted RNA amplicons are assessed for RNA secondary structures 
-using LinearFold [Huang et al. 2019](https://academic.oup.com/bioinformatics/article/35/14/i295/5529205)). 
-Z-scores are calculated uses a regression model that corrects for the amplicon length, allowing interpretability of values.
+using LinearFold ([Huang et al. 2019](https://academic.oup.com/bioinformatics/article/35/14/i295/5529205)). 
+Z-scores are calculated using a regression model that models the free energy versus amplicon length. This allows comparing free energies 
+of long and short amplicons.
 
 #### Installation and running (typical time: less than 5 minutes)
 ```
@@ -38,19 +39,19 @@ cd primer_design_linearfold_covid19`
 
 # Running examples
 ```
-python generate_primer_pairs.py --help # see help (fasta ID, gc content filter, min-max primer/amplicon lengths, etc.
+python generate_primer_pairs.py --help # see help (fasta ID, gc content filter, min-max primer/amplicon lengths, etc.)
 python generate_primer_pairs.py --ntest 100 # 
 python generate_primer_pairs.py --checkothers # check for other viral genomes
 ```
 
 # Output
-- An Excel file called `output/GCF_009858895.2_CDS_pairs.xlsx` will contain details for all primer pairs selected by input criteris.
+- An Excel file called `output/GCF_009858895.2_CDS_pairs.xlsx` contain details for all shortlisted pairs selected by input criteris.
 - Check Z-scores for RNA-stability of primers. More negative values are correlated with stable 2D-RNA amplicons.
-    - Submit amplicon sequence in [NUPACK website](http://www.nupack.org/partition/new) to visualize structure. 
+    - To visualize, you can submit amplicon sequences in [NUPACK website](http://www.nupack.org/partition/new). 
 
 # Running time
 - Around 10-20 minutes for full execution (one CPU, default parameters, verification against other genomes and
-RNA secondary structure step).
+RNA secondary structure assessment).
 - Adding more background genomes increases running time linearly.
 - Reducing the primer lengths increases exponentially the running time.
 
@@ -58,8 +59,8 @@ RNA secondary structure step).
 Please report in Issues, to [Anibal Arce](aaarce@uc.cl) or to [Ignacio Ibarra](ignacio.ibarra@helmholtz-muenchen.de).
 
 ### Misc
-- More background viral genomes can be added manually in `input/other_viruses` as fasta files.
-- Please add also an entry to the file `names.tsv` with a keyword for that name.
+- More background viral genomes can be added manually in `input/other_viruses` as fasta files. Please add also an entry to the file `names.tsv` with a keyword for that name.
+- You can replace the FASTA_ID in input to genomes of your interest (not only COVID-19).
 
 ### Funding
 OpenCovid19 Initiative - Just One Giant Lab.
