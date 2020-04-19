@@ -61,7 +61,8 @@ RNA secondary structure assessment).
 - You can replace the FASTA_ID in input to genomes of your interest (not only COVID-19).
 
 ### Feedback, errors, or further questions
-Please report in Issues, or send an e-mail to Anibal Arce (aaarce@uc.cl) or Ignacio Ibarra (ignacio.ibarra@helmholtz-muenchen.de).
+1. Report in Issues and/or.
+2. Send an e-mail to Anibal Arce (aaarce@uc.cl) or Ignacio Ibarra (ignacio.ibarra@helmholtz-muenchen.de).
 
 ### Funding
 OpenCovid19 Initiative - Just One Giant Lab.
