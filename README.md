@@ -1,4 +1,4 @@
-<img src="./about/jogl_logo.png" width="200px" height="200px" align="right">
+<img src="./about/jogl_logo.png" width="200px" height="300px" align="right">
 
 ## **Screening of primers for COVID-19 with genome specificity and amplicons with stable single-stranded RNA structure**
 By Anibal Arce and Ignacio Ibarra
