@@ -1,4 +1,4 @@
-## **Screening of primers for COVID-19 with genome specificity and obtaining amplicons with stable RNA secondary structure**
+## **Screening of primers for COVID-19 with genome specificity and amplicons with stable RNA secondary structure**
 By Anibal Arce and Ignacio Ibarra
 
 ### Motivation
