@@ -46,7 +46,7 @@ python generate_primer_pairs.py --checkothers # full run, checking for unwanted 
 ```
 
 # Output
-- An Excel file called `output/GCF_009858895.2_CDS_pairs.xlsx` contain details for all shortlisted pairs selected by input criteris.
+- An Excel file called `output/GCF_009858895.2_CDS_pairs.xlsx` contains details for all shortlisted pairs selected by input criteris.
 - Check Z-scores for RNA-stability of primers. More negative values are correlated with stable 2D-RNA amplicons.
     - To visualize, you can submit amplicon sequences in [NUPACK website](http://www.nupack.org/partition/new). 
 
