@@ -40,8 +40,9 @@ cd primer_design_linearfold_covid19`
 # Running examples
 ```
 python generate_primer_pairs.py --help # see help (fasta ID, gc content filter, min-max primer/amplicon lengths, etc.)
-python generate_primer_pairs.py --ntest 100 # 
-python generate_primer_pairs.py --checkothers # check for other viral genomes
+python generate_primer_pairs.py --ntest 100 # test only with the first 100 primer pairs
+python generate_primer_pairs.py --ntest 1000 --checkothers # test only with the first 1000 pairs, and check for background viral genomes
+python generate_primer_pairs.py --checkothers # full run, checking for unwanted viral genomes
 ```
 
 # Output
@@ -50,7 +51,7 @@ python generate_primer_pairs.py --checkothers # check for other viral genomes
     - To visualize, you can submit amplicon sequences in [NUPACK website](http://www.nupack.org/partition/new). 
 
 # Running time
-- Around 10-20 minutes for full execution (one CPU, default parameters, verification against other genomes and
+- Around 15-30 minutes for full execution (one CPU, default parameters, verification against other genomes and
 RNA secondary structure assessment).
 - Adding more background genomes increases running time linearly.
 - Reducing the primer lengths increases exponentially the running time.
