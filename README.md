@@ -58,7 +58,7 @@ python generate_primer_pairs.py --checkothers --overwrite1 --overwrite2 # full r
 
 ### Running time
 - Around 5-15 minutes for load tests between 100 and 2000 (primer pairs and their respective amplicons).
-- ~90 minutes for full execution (one CPU, default parameters, verification against other genomes and
+- ~90-120 minutes for full execution (one CPU, default parameters, verification against other genomes and
 RNA secondary structure assessment).
 - Adding more background genomes increases running time linearly.
 - Reducing the primer lengths increases exponentially the running time.
