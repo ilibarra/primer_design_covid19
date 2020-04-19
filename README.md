@@ -1,4 +1,4 @@
-## **Screening of primers for COVID-19 with genome specificity and amplicons with stable RNA secondary structure**
+## **Screening of primers for COVID-19 with genome specificity and obtaining amplicons with stable RNA secondary structure**
 By Anibal Arce and Ignacio Ibarra
 
 ### Motivation
@@ -56,12 +56,12 @@ RNA secondary structure assessment).
 - Adding more background genomes increases running time linearly.
 - Reducing the primer lengths increases exponentially the running time.
 
-### Feedback, errors, or further questions
-Please report in Issues, to [Anibal Arce](aaarce@uc.cl) or to [Ignacio Ibarra](ignacio.ibarra@helmholtz-muenchen.de).
-
 ### Misc
 - More background viral genomes can be added manually in `input/other_viruses` as fasta files. Please add also an entry to the file `names.tsv` with a keyword for that name.
 - You can replace the FASTA_ID in input to genomes of your interest (not only COVID-19).
+
+### Feedback, errors, or further questions
+Please report in Issues, to Anibal Arce (aaarce@uc.cl) or Ignacio Ibarra (ignacio.ibarra@helmholtz-muenchen.de).
 
 ### Funding
 OpenCovid19 Initiative - Just One Giant Lab.
