@@ -15,11 +15,11 @@ from DataFrameAnalyzer import DataFrameAnalyzer
 import pandas as pd
 import numpy as np
 
-def run(pmin, pmax, amplicon_min, amplicon_max, fasta_id, input_dir, output_dir,
+def run(pmin, pmax, gcmin, gcmax, tm, amplicon_min, amplicon_max, fasta_id, input_dir, output_dir,
         linearfold_bin, check_others, **kwargs):
     sequences = FastaAnalyzer.get_fastas(join(input_dir, "%s.fasta" % fasta_id), as_dict=True)
 
-    T7 = 'AATTCTAATACGACTCACTATAGGGAGAAGG'
+    tagseq = kwargs.get('tagseq', '')
     overwrite = True
 
     # RULES 1-8 + VIRUSES COMPETITION
@@ -35,11 +35,11 @@ def run(pmin, pmax, amplicon_min, amplicon_max, fasta_id, input_dir, output_dir,
 
                     for seq, direction in zip([primer, SequenceMethods.get_complementary_seq(primer)],
                                                ['+', '-']):
-                        # GC content 40-60
+                        # GC content between gcmin and gcmax
                         gc = SequenceMethods.get_gc_content(seq)
-                        rule1 = gc >= 40 and gc <= 60
+                        rule1 = gc >= gcmin and gc <= gcmax
 
-                        # GC content first 6 nt
+                        # GC content of first 6 nt
                         gc5prime = SequenceMethods.get_gc_content(seq[:6])
                         gc3prime = SequenceMethods.get_gc_content(seq[-6:])
 
@@ -47,8 +47,8 @@ def run(pmin, pmax, amplicon_min, amplicon_max, fasta_id, input_dir, output_dir,
                         # rule2
                         # Tm = 81.5 + 16.6(log10([Na+])) + .41*(%GC) - 600/length,
                         na_concentration = 0.1
-                        Tm = 81.5 + 16.6*(np.log10(na_concentration)) + .41*(gc) - 600/len(seq)
-                        rule2 = Tm > 41
+                        primer_tm = 81.5 + 16.6*(np.log10(na_concentration)) + .41*(gc) - 600/len(seq)
+                        rule2 = primer_tm > tm
 
                         # homopolymers of length 4
                         rule3 = SequenceMethods.has_homopolymer(seq, 4)
@@ -57,8 +57,8 @@ def run(pmin, pmax, amplicon_min, amplicon_max, fasta_id, input_dir, output_dir,
 
                         if not rule1 or not rule2 or not rule3 or not rule4:
                             continue
-                        table.append([fasta_id, h, si, primer_len, seq, direction, gc, Tm, rule1, rule2, rule3, rule4,
-                                      gc5prime, gc3prime])
+                        table.append([fasta_id, h, si, primer_len, seq, direction, gc, primer_tm,
+                                      rule1, rule2, rule3, rule4, gc5prime, gc3prime])
 
 
         df = pd.DataFrame(table, columns=['fasta.id', 'fa.name', 'fasta.position', 'primer.len', 'seq', 'direction',
@@ -72,6 +72,7 @@ def run(pmin, pmax, amplicon_min, amplicon_max, fasta_id, input_dir, output_dir,
                                                                                        'names.tsv')),
                                                        'FILENAME', 'VIRUS')
 
+        # check against all background viral genomes
         if check_others:
             for f in listdir(other_viruses_dir):
                 print('filtering negative genome sequences', f)
@@ -100,6 +101,7 @@ def run(pmin, pmax, amplicon_min, amplicon_max, fasta_id, input_dir, output_dir,
         else:
             df['best.hit.others'] = -1
 
+        print('Saving selected primers:')
         DataFrameAnalyzer.to_tsv(df, join(output_dir, "%s.tsv.gz" % fasta_id))
         df.to_excel(join(output_dir, "%s.xlsx" % fasta_id))
     df = DataFrameAnalyzer.read_tsv_gz(bkp_path_df)
@@ -108,6 +110,7 @@ def run(pmin, pmax, amplicon_min, amplicon_max, fasta_id, input_dir, output_dir,
 
     # Analyze group primers by pairs and filter ones that are not good amplicon length min-max
     # and Run LinearFold to get score estimates
+    print('\nSelection of 1-2 primer pairs (amplicon length + RNA secondary structure)...')
     bkp_path_df2 = join(input_dir, "%s_pairs.tsv.gz" % fasta_id)
     if not exists(bkp_path_df2) or overwrite:
         iloc_by_idx = {idx: df.iloc[idx] for idx in df.index}
@@ -132,7 +135,7 @@ def run(pmin, pmax, amplicon_min, amplicon_max, fasta_id, input_dir, output_dir,
             df2['seq.%s' % symbol] = [iloc_by_idx[r[symbol]]['seq'] for ri, r in df2.iterrows()]
             df2['gc.%s' % symbol] =  df2['seq.%s' % symbol].apply(SequenceMethods.get_gc_content)
             df2['direction.%s' % symbol] = [direction_by_idx[r[symbol]] for ri, r in df2.iterrows()]
-            df2['T7.seq.%s' % symbol] = T7 + df2['seq.%s' % symbol]
+            df2['tag.seq.%s' % symbol] = tagseq + df2['seq.%s' % symbol]
 
 
         assert sum(df2['i'].map(faname_by_idx) != df2['j'].map(faname_by_idx)) == 0
@@ -168,8 +171,8 @@ def run(pmin, pmax, amplicon_min, amplicon_max, fasta_id, input_dir, output_dir,
                                                                                int(r['vj'].split("_")[-1])]
                                for ri, r in df2.iterrows()]
         df2['amplicon.rev'] = df2['amplicon.fwd'].apply(SequenceMethods.get_complementary_seq)
-        df2['T7.amplicon.fwd'] = T7 + df2['amplicon.fwd']
-        df2['T7.amplicon.rev'] = T7 + df2['amplicon.rev']
+        df2['tag.amplicon.fwd'] = tagseq + df2['amplicon.fwd']
+        df2['tag.amplicon.rev'] = tagseq + df2['amplicon.rev']
 
         df2['amplicon.len.str'] = df2['vj'].str.split("_").str[-2].astype(int) -\
                                   df2['vi'].str.split("_").str[-2].astype(int) + \
@@ -178,9 +181,9 @@ def run(pmin, pmax, amplicon_min, amplicon_max, fasta_id, input_dir, output_dir,
         tmppath = tempfile.mkstemp()[1]
         inpath = tmppath
 
-        queries_linearfold = ['T7.seq.i', 'T7.seq.j',
+        queries_linearfold = ['tag.seq.i', 'tag.seq.j',
                               'amplicon.fwd', 'amplicon.rev',
-                              'T7.amplicon.fwd', 'T7.amplicon.rev']
+                              'tag.amplicon.fwd', 'tag.amplicon.rev']
 
         linearfold = '%s -V' % linearfold_bin
         inpath = tmppath + ".in"
@@ -199,7 +202,7 @@ def run(pmin, pmax, amplicon_min, amplicon_max, fasta_id, input_dir, output_dir,
             df2['dG.LFold.%s' % label] = scores
 
         # calculate Z-scores based on mean by length
-        # do this twice (i) only for T7+primers and (ii) for T7+longer amplicons
+        # do this twice (i) only for tag+primers and (ii) for tag+primer+amplicon
         # mean is estimated by linear model
         # more negative Z-scores = less reliable primers/amplicons due to unexpected stability
         for sub_queries in queries_linearfold[:2], queries_linearfold[2:]:
@@ -232,13 +235,22 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--pmin", type=int, default=20)
     parser.add_argument("--pmax", type=int, default=24)
+
+    parser.add_argument("--gcmin", type=float, default=40)
+    parser.add_argument("--gcmax", type=float, default=60)
+
+    parser.add_argument("--tmmin", type=float, default=41)
+
     parser.add_argument("--ampliconmin", type=int, default=120)
     parser.add_argument("--ampliconmax", type=int, default=240)
+
+    # Use the T7 sequence as a default tag
+    parser.add_argument('--tagprimer', type=str, default='AATTCTAATACGACTCACTATAGGGAGAAGG')
 
     parser.add_argument("--ntest", type=int, default=None)
 
     parser.add_argument("-p", "--progressbar", action='store_true', default=False)
-    parser.add_argument("--others", action='store_true', default=False)
+    parser.add_argument("--checkothers", action='store_true', default=False)
 
     parser.add_argument('--fastaid', type=str, default='GCF_009858895.2_CDS')
     parser.add_argument('--linearfold', type=str, default='linearfold')
@@ -248,5 +260,5 @@ if __name__ == '__main__':
 
     opts = parser.parse_args()
 
-    run(opts.pmin, opts.pmax, opts.ampliconmin, opts.ampliconmax,
-        opts.fastaid, opts.inputdir, opts.outputdir, opts.linearfold, opts.others, ntest=opts.ntest)
+    run(opts.pmin, opts.pmax, opts.gcmin, opts.gcmax, opts.tmmin, opts.ampliconmin, opts.ampliconmax,
+        opts.fastaid, opts.inputdir, opts.outputdir, opts.linearfold, opts.checkothers, ntest=opts.ntest, tag=opts.tagprimer)
