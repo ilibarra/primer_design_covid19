@@ -5,26 +5,30 @@ Fast analyzer for designing primer pairs with 2D-stable structure
 
 @author: ignacio
 '''
+import tempfile
 from difflib import SequenceMatcher
 from itertools import combinations
-import tempfile
-from path_functions import *
-from FastaAnalyzer import FastaAnalyzer
-from SequenceMethods import SequenceMethods
-from DataFrameAnalyzer import DataFrameAnalyzer
-import pandas as pd
 import numpy as np
+import pandas as pd
+import utilities
+from utilities import *
 
+
+# Main script function
 def run(pmin, pmax, gcmin, gcmax, tm, amplicon_min, amplicon_max, fasta_id, input_dir, output_dir,
         linearfold_bin, check_others, **kwargs):
-    sequences = FastaAnalyzer.get_fastas(join(input_dir, "%s.fasta" % fasta_id), as_dict=True)
 
+    print('Primer pairs generator + with background genome check (steo 1) and RNA secondary structure check (step 2)')
+    sequences = FastaAnalyzer.get_fastas(join(input_dir, "%s.fasta" % fasta_id), as_dict=True)
     tagseq = kwargs.get('tagseq', '')
-    overwrite = True
+    overwrite1 = kwargs.get('overwrite1', 0)
+    overwrite2 = kwargs.get('overwrite2', 0)
 
     # RULES 1-8 + VIRUSES COMPETITION
-    bkp_path_df = join(input_dir, "%s.tsv.gz" % fasta_id)
-    if not exists(bkp_path_df) or overwrite:
+    print('STEP 1')
+    bkp_path_df = join(output_dir, "%s.tsv.gz" % fasta_id)
+
+    if not exists(bkp_path_df) or overwrite1:
         table = []
         for h in sequences:
             s = sequences[h]
@@ -75,13 +79,15 @@ def run(pmin, pmax, gcmin, gcmax, tm, amplicon_min, amplicon_max, fasta_id, inpu
         # check against all background viral genomes
         if check_others:
             for f in listdir(other_viruses_dir):
-                print('filtering negative genome sequences', f)
+                if f.endswith('.tsv'):
+                    continue
+                print('Scanning against background viral genomes using file ...', f, column_names_by_f[f])
                 best_hits = []
                 fa = FastaAnalyzer.get_fastas(join(other_viruses_dir, f))
                 for ri, r in df.iterrows():
                     a = r['seq']
                     if ri % 100 == 0:
-                        print(ri, f, a)
+                        print(ri, 'primers out of', df.shape[0], 'matched against', column_names_by_f[f], a)
                     cmp_a = SequenceMethods.get_complementary_seq(a)
                     n_best_match = 0
                     for h, b in fa:
@@ -104,25 +110,27 @@ def run(pmin, pmax, gcmin, gcmax, tm, amplicon_min, amplicon_max, fasta_id, inpu
         print('Saving selected primers:')
         DataFrameAnalyzer.to_tsv(df, join(output_dir, "%s.tsv.gz" % fasta_id))
         df.to_excel(join(output_dir, "%s.xlsx" % fasta_id))
+    else:
+        print('skip STEP 1 (file exists and overwrite1=False')
     df = DataFrameAnalyzer.read_tsv_gz(bkp_path_df)
     best_hit_by_k = DataFrameAnalyzer.get_dict(df, 'k', 'best.hit.others')
 
 
     # Analyze group primers by pairs and filter ones that are not good amplicon length min-max
     # and Run LinearFold to get score estimates
+    print('STEP 2')
     print('\nSelection of 1-2 primer pairs (amplicon length + RNA secondary structure)...')
-    bkp_path_df2 = join(input_dir, "%s_pairs.tsv.gz" % fasta_id)
-    if not exists(bkp_path_df2) or overwrite:
+    bkp_path_df2 = join(output_dir, "%s_pairs.tsv.gz" % fasta_id)
+    if not exists(bkp_path_df2) or overwrite2:
         iloc_by_idx = {idx: df.iloc[idx] for idx in df.index}
         faname_by_idx = {idx: df.iloc[idx]['fa.name'] for idx in df.index}
         direction_by_idx = {idx: df.iloc[idx]['direction'] for idx in df.index}
 
-        print('Generating pairs (within ORFs). This is the slowest step (please wait 2-3 min)')
+        print('Generating primer pairs (within ORFs). This is the slowest step (please wait 3-5 in all ORFs...)')
         accepted_pairs = []
         for orf, grp in df.groupby('fa.name'):
             ntest = kwargs.get('ntest')
-            print(orf, grp.shape[0])
-
+            print('Generating primer pairs for ORF:', orf[:100], "... # primers=%i" % grp.shape[0])
             accepted_pairs += [[a, b] for a, b in combinations(grp.head(ntest if ntest is not None else grp.shape[0]).index, 2) if
                               (abs(iloc_by_idx[b]['fasta.position'] - iloc_by_idx[a]['fasta.position'] + 1) >= amplicon_min) and
                               (abs(iloc_by_idx[b]['fasta.position'] - iloc_by_idx[a]['fasta.position'] + 1) <= amplicon_max) and
@@ -149,7 +157,7 @@ def run(pmin, pmax, gcmin, gcmax, tm, amplicon_min, amplicon_max, fasta_id, inpu
         longest_local_match = []
         for ri, r in df2.iterrows():
             if ri % 100 == 0:
-                print("# RUNNING FINDING PRIMERS HITS", ri, 'out of', df2.shape[0])
+                print("# Scanning for local primer pair hits", ri, 'out of', df2.shape[0])
             a, b = r['seq.i'], r['seq.j']
             cmp_b = SequenceMethods.get_complementary_seq(b)
             match_a_cmpb = [a, cmp_b, SequenceMatcher(None, a, cmp_b, autojunk=False).find_longest_match(0, len(a), 0, len(b))]
@@ -229,36 +237,46 @@ def run(pmin, pmax, gcmin, gcmax, tm, amplicon_min, amplicon_max, fasta_id, inpu
 
         DataFrameAnalyzer.to_tsv_gz(df2, join(output_dir, "%s_pairs.tsv.gz" % fasta_id))
         df2.to_excel(join(output_dir, "%s_pairs.xlsx" % fasta_id), index=None)
+    else:
+        print('skip STEP 2 (file exists and overwrite2=False')
 
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--pmin", type=int, default=20)
-    parser.add_argument("--pmax", type=int, default=24)
+    parser.add_argument("--pmin", type=int, default=20, help='minimum primer length (def. 20)')
+    parser.add_argument("--pmax", type=int, default=24, help='minimum primer length (def. 24)')
 
-    parser.add_argument("--gcmin", type=float, default=40)
-    parser.add_argument("--gcmax", type=float, default=60)
+    parser.add_argument("--gcmin", type=float, default=40,
+                        help='minimum GC content for primers (def. 40 Celsius).')
+    parser.add_argument("--gcmax", type=float, default=60,
+                        help='maximum GC content for primers (def. 60 Celsius).')
 
-    parser.add_argument("--tmmin", type=float, default=41)
+    parser.add_argument("--tmmin", type=float, default=41,
+                        help='minimum melting temperature (def. 41 Celsius)')
 
-    parser.add_argument("--ampliconmin", type=int, default=120)
-    parser.add_argument("--ampliconmax", type=int, default=240)
+    parser.add_argument("--ampliconmin", type=int, default=120, help='minimum amplicon length (def. 120)')
+    parser.add_argument("--ampliconmax", type=int, default=240, help='minimum amplicon length (def. 240)')
 
     # Use the T7 sequence as a default tag
-    parser.add_argument('--tagprimer', type=str, default='AATTCTAATACGACTCACTATAGGGAGAAGG')
+    parser.add_argument('--tagprimer', type=str, help='tag for primers (def. T7 sequence, AATTCTAATACGACTCACTATAGGGAGAAGG)',
+                        default='AATTCTAATACGACTCACTATAGGGAGAAGG')
 
-    parser.add_argument("--ntest", type=int, default=None)
+    parser.add_argument("--ntest", type=int, default=None, help='for load tests. Default is None (--ntest 10 = test for 10 primer pairs and finish')
+    parser.add_argument("--overwrite1", type=int, help='Force repeat single primer generation and background viruses scanning step', default=0)
+    parser.add_argument("--overwrite2", type=int, help='Force repeat 1-2 primer pairs and secondary structure asssessment', default=0)
 
-    parser.add_argument("-p", "--progressbar", action='store_true', default=False)
+    parser.add_argument("-p", "--progressbar", action='store_true', default=False,
+                        help='Show progress bar (not implemented in deployed version).')
     parser.add_argument("--checkothers", action='store_true', default=False)
 
-    parser.add_argument('--fastaid', type=str, default='GCF_009858895.2_CDS')
-    parser.add_argument('--linearfold', type=str, default='linearfold')
+    parser.add_argument('--fastaid', type=str, default='GCF_009858895.2_CDS', help='fastaid to use from input dir (def. GCF_009858895.2_CDS)')
+    parser.add_argument('--linearfold', type=str, default='linearfold', help='path to linearfold if not declared in $PATH')
 
-    parser.add_argument('--inputdir', type=str, default="input")
-    parser.add_argument('--outputdir', type=str, default="output")
+    parser.add_argument('--inputdir', type=str, default="input", help='input directory (def. ./input)')
+    parser.add_argument('--outputdir', type=str, default="output", help='output directory (def. ./output)')
 
     opts = parser.parse_args()
 
     run(opts.pmin, opts.pmax, opts.gcmin, opts.gcmax, opts.tmmin, opts.ampliconmin, opts.ampliconmax,
-        opts.fastaid, opts.inputdir, opts.outputdir, opts.linearfold, opts.checkothers, ntest=opts.ntest, tag=opts.tagprimer)
+        opts.fastaid, opts.inputdir, opts.outputdir, opts.linearfold, opts.checkothers, ntest=opts.ntest, tag=opts.tagprimer,
+        overwrite1=opts.overwrite1, overwrite2=opts.overwrite1)

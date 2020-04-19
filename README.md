@@ -1,11 +1,11 @@
 <img src="./about/jogl_logo.png" width="100px" height="100px" align="right">
 
-## **Screening of primers for COVID-19 with genome specificity and amplicons with stable single-stranded RNA secondary structure**
+## **Screening of primers for COVID-19 with genome specificity and amplicons with stable single-stranded RNA structure**
 By Anibal Arce and Ignacio Ibarra
 
 ### Motivation
 ---------------------------------------------------------
-- Sequence-specific isothermal amplification of targets from viral samples is escential for implementing low-cost diagnostic tools based on nucleic acid detection.
+- Sequence-specific isothermal amplification of targets from viral samples is essential for implementing low-cost diagnostic tools based on nucleic acid detection.
 - Design and selection of primer combinations for this propuse can be automated considering the optimal parameters for a particular methodology, such as NASBA isothermal amplification of RNA.
 - Analysis of the secondary structure of the amplicon generated, aids in the shortlisting of candidates for downstreams detection tools such as Toeholds RNA Sensors.
 
@@ -13,7 +13,7 @@ By Anibal Arce and Ignacio Ibarra
 ----------------
 
 This Python workflow:
-1. Selects desirable primers for experiments targeting in the COVID-19 genome. Unwanted specificity with other viral genomes is checked. 
+1. Selects desirable primers for experiments targeting in the COVID-19 genome. Unwanted specificity with other viral genomes is checked and reported. 
 2. Amplicon products obtained from primer pairs are checked for RNA secondary structure
 stability (reported as minimum free energy and Z-scores).
 
@@ -28,33 +28,36 @@ using LinearFold ([Huang et al. 2019](https://academic.oup.com/bioinformatics/ar
 Z-scores are calculated using a regression model that models the free energy versus amplicon length. This allows comparing free energies 
 of long and short amplicons.
 
-#### Installation and running (typical time: less than 5 minutes)
+### Installation and running (typical time: less than 5 minutes)
 ```
 git clone primer_design_linearfold_covid19.git
-cd primer_design_linearfold_covid19`
+cd primer_design_linearfold_covid19
 ```
 
-### Requirements
+### Environment requirements
 - `Python 3` https://www.python.org/
-- `pandas numpy seaborn scikit-learn`
-- We use [LinearFold](https://github.com/LinearFold/LinearFold) to assess free energy of RNA secondary structures.
-- Please include to `$PATH` or define path with `--linearfold`.
+- Data Science packages for Python: `pandas numpy seaborn scikit-learn`
+- [LinearFold](https://github.com/LinearFold/LinearFold) must be installed to assess free energy of RNA secondary structures.
+Please include to `$PATH` or define path with `--linearfold`.
 
-# Running examples
+### Execution examples
 ```
 python generate_primer_pairs.py --help # see help (fasta ID, gc content filter, min-max primer/amplicon lengths, etc.)
-python generate_primer_pairs.py --ntest 100 # test only with the first 100 primer pairs
-python generate_primer_pairs.py --ntest 1000 --checkothers # test only with the first 1000 pairs, and check for background viral genomes
+# LOAD TESTS
+python generate_primer_pairs.py --ntest 100 # test only with the first 100 primer pairs (run in 5 minutes).
+python generate_primer_pairs.py --ntest 1000 # test only with the first 1000 pairs, and check for background viral genomes
+# FULL RUN
 python generate_primer_pairs.py --checkothers # full run, checking for unwanted viral genomes
 ```
 
-# Output
-- An Excel file called `output/GCF_009858895.2_CDS_pairs.xlsx` contains details for all shortlisted pairs selected by input criteris.
-- Check Z-scores for RNA-stability of primers. More negative values are correlated with stable 2D-RNA amplicons.
+### Output
+- An Excel file called `output/FASTA_ID_pairs.xlsx` contains details for all shortlisted pairs selected by input criteria.
+- Check Z-scores for RNA-stability of primers and amplicons. More negative values are correlated with more stable RNA structures.
     - To visualize, you can submit amplicon sequences in [NUPACK website](http://www.nupack.org/partition/new). 
 
-# Running time
-- Around 15-30 minutes for full execution (one CPU, default parameters, verification against other genomes and
+### Running time
+- Around 5-15 minutes for load tests between 100 and 2000 (primer pairs and their respective amplicons).
+- ~90 minutes for full execution (one CPU, default parameters, verification against other genomes and
 RNA secondary structure assessment).
 - Adding more background genomes increases running time linearly.
 - Reducing the primer lengths increases exponentially the running time.
