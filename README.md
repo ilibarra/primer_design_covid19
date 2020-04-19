@@ -1,10 +1,11 @@
-## **Screening of primers for COVID-19 with genome specificity and amplicons with stable RNA secondary structure**
+## **Screening of primers for COVID-19 with genome specificity and amplicons with stable single-stranded RNA secondary structure**
 By Anibal Arce and Ignacio Ibarra
 
 ### Motivation
 ---------------------------------------------------------
-- Design and selection of primer combinations that specifically recognize target viruses is desirable for Molecular Biologists.
-- Filtering amplicons by formation of secondary structures aids in the shortlisting of candidates for downstreams detection tools.
+- Sequence-specific isothermal amplification of targets from viral samples is escential for implementing low-cost diagnostic tools based on nucleic acid detection.
+- Design and selection of primer combinations for this propuse can be automated considering the optimal parameters for a particular methodology, such as NASBA isothermal amplification of RNA.
+- Annalysis of the secondary structure of the amplicon generated, aids in the shortlisting of candidates for downstreams detection tools such as Toeholds RNA Sensors.
 
 ### Solution
 ----------------
@@ -12,7 +13,7 @@ By Anibal Arce and Ignacio Ibarra
 This Python workflow:
 1. Selects desirable primers for downstream selection in the COVID-19 genome. Unwanted specificity with other viral genomes is checked. 
 2. Amplicon products obtained from primer pairs are checked for RNA secondary structure
-stability (reported as free energy and Z-scores).
+stability (reported as free energy of the MFE and Z-scores).
 
 ### Workflow steps
 1. Primers are scanned against COVID-19's GenBank entry (`--fastaid` to modify with custom fasta), 
