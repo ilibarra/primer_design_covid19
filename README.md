@@ -52,8 +52,8 @@ python generate_primer_pairs.py --checkothers # full run, checking for unwanted 
 
 ### Output
 - An Excel file called `output/FASTA_ID_pairs.xlsx` contains details for all shortlisted pairs selected by input criteria.
-- Check Z-scores for RNA-stability of primers and amplicons. More negative values are correlated with more stable RNA structures.
-    - To visualize, you can submit amplicon sequences in [NUPACK website](http://www.nupack.org/partition/new). 
+- Check Z-scores for RNA-stability of primers and amplicons. More negative values are correlated with more stable RNA secondary structures.
+    - You can visualize 2D-stable amplicon sequences using [NUPACK](http://www.nupack.org/partition/new). 
 
 ### Running time
 - Around 5-15 minutes for load tests between 100 and 2000 (primer pairs and their respective amplicons).
