@@ -262,8 +262,8 @@ if __name__ == '__main__':
                         default='AATTCTAATACGACTCACTATAGGGAGAAGG')
 
     parser.add_argument("--ntest", type=int, default=None, help='for load tests. Default is None (--ntest 10 = test for 10 primer pairs and finish')
-    parser.add_argument("--overwrite1", type=int, help='Force repeat single primer generation and background viruses scanning step', default=0)
-    parser.add_argument("--overwrite2", type=int, help='Force repeat 1-2 primer pairs and secondary structure asssessment', default=0)
+    parser.add_argument("--overwrite1", action='store_true', help='Force repeat single primer generation and background viruses scanning step', default=0)
+    parser.add_argument("--overwrite2", action='store_true', help='Force repeat 1-2 primer pairs and secondary structure asssessment', default=0)
 
     parser.add_argument("-p", "--progressbar", action='store_true', default=False,
                         help='Show progress bar (not implemented in deployed version).')
@@ -279,4 +279,4 @@ if __name__ == '__main__':
 
     run(opts.pmin, opts.pmax, opts.gcmin, opts.gcmax, opts.tmmin, opts.ampliconmin, opts.ampliconmax,
         opts.fastaid, opts.inputdir, opts.outputdir, opts.linearfold, opts.checkothers, ntest=opts.ntest, tag=opts.tagprimer,
-        overwrite1=opts.overwrite1, overwrite2=opts.overwrite1)
+        overwrite1=opts.overwrite1, overwrite2=opts.overwrite2)
