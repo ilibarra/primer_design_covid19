@@ -16,7 +16,7 @@ stability (reported as free energy and Z-scores).
 
 ### Workflow steps
 1. Primers are scanned against COVID-19's GenBank entry (`--fastaid` to modify with custom fasta), 
-and filtered by desirable %GC content rules, Tm and low duplex.
+and filtered by desirable %GC content rules, Tm and local alignment between primers (duplex formation).
 2. Primers are scanned against 7 viral genomes selected to reduce amplification of untargeted viral genomes:
     - RSV, Ketapneumovirus, Parainfluenza 4a, Adenovirus E, Influenza B, Influenza A.
 3. Primers are grouped into pairs and filtered by amplicon lengths.
