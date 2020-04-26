@@ -38,6 +38,7 @@ cd primer_design_linearfold_covid19
 - `Python 3` https://www.python.org/
 - Data Science packages for Python: `pandas numpy seaborn scikit-learn`
 - [LinearFold](https://github.com/LinearFold/LinearFold) must be installed to assess free energy of RNA secondary structures.
+- MUSCLE (April/2020): Necessary to generate MSA files between provided aln files and reference FASTA
 Please include to `$PATH` or define path with `--linearfold`.
 
 ### Execution examples

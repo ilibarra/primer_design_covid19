@@ -12,17 +12,64 @@ import numpy as np
 import pandas as pd
 import utilities
 from utilities import *
-
+from collections import Counter
 
 # Main script function
 def run(pmin, pmax, gcmin, gcmax, tm, amplicon_min, amplicon_max, fasta_id, input_dir, output_dir,
         linearfold_bin, check_others, **kwargs):
 
-    print('Primer pairs generator + with background genome check (steo 1) and RNA secondary structure check (step 2)')
+
+    print('Reading MSA data (for mismatches mapping)')
+    # calculate iteratively an MSA by calling muscle
+    msa_path = join(input_dir, 'lcl_mod_emb-LR757997.1 and 105 other sequences.aln')
+    msa_dir = join(input_dir, 'msa')
+    if not exists(msa_dir):
+        mkdir(msa_dir)
+    msa_bkp = join(msa_dir, 'lcl_mod_emb-LR757997.1 and 105 other sequences_n_GCF_009858895.2_CDS.fasta')
+    if not exists(msa_bkp):
+        sequences = FastaAnalyzer.get_fastas(join(input_dir, "%s.fasta" % fasta_id))
+        for h, s in sequences:
+            next_fa = join(msa_dir, h.split(" ")[1][1:-1] + ".afa")
+            print(exists(next_fa), next_fa)
+            if not exists(next_fa):
+                fa_in = join(msa_dir, h.split(" ")[1][1:-1] + ".fa")
+                FastaAnalyzer.write_fasta_from_sequences([[h, s]], fa_in)
+                muscle_cmd = 'muscle -profile -in1 %s -in2 \"%s\" -out %s' % (fa_in, msa_path, next_fa)
+                print(muscle_cmd)
+                system(muscle_cmd)
+
+    # read msa info: This dictionary will be referred to during the last step
+    variants_by_h = {}
+    for f in listdir(msa_dir):
+        if not f.endswith('.afa'):
+            continue
+        code = f.replace(".afa", '')
+        curr_position = 0
+        msa = FastaAnalyzer.get_fastas(join(msa_dir, f))
+        for si, nt in enumerate(msa[0][1]):
+            if nt != '-':
+                if not code in variants_by_h:
+                    variants_by_h[code] = {}
+                variants_by_h[code][curr_position] = Counter([s2[si] for h2, s2 in msa])
+                curr_position += 1
+
+    hits_by_h2 = {}
+    for h, s in sequences:
+        print(h, len(s))
+        for h2, s2 in msa:
+            if s in s2.replace("-", ''):
+                print(h, h2, 'found')
+                hits_by_h2[h2] = 1 if not h2 in hits_by_h2 else hits_by_h2[h2] + 1
+
+
+
+    print('Primer pairs generator + with background genome check (step 1) and RNA secondary structure check (step 2)')
     sequences = FastaAnalyzer.get_fastas(join(input_dir, "%s.fasta" % fasta_id), as_dict=True)
     tagseq = kwargs.get('tagseq', '')
     overwrite1 = kwargs.get('overwrite1', 0)
     overwrite2 = kwargs.get('overwrite2', 0)
+
+
 
     # RULES 1-8 + VIRUSES COMPETITION
     print('STEP 1')
@@ -70,6 +117,24 @@ def run(pmin, pmax, gcmin, gcmax, tm, amplicon_min, amplicon_max, fasta_id, inpu
         df['k'] = df['fasta.id'] + "_" + df['fasta.position'].astype(str) + "_" + df['primer.len'].astype(str)
 
 
+        # check for MSA alternate variants within the primers
+        msa_flagged_primers = []
+        flag_details = []
+        for ri, r in df.iterrows():
+            flag = False
+            flag_details.append('')
+            k = r['fa.name'].split(" ")[1][1:-1]
+            for pi in range(r['fasta.position'], r['fasta.position'] + r['primer.len']):
+                n_variants = len({nt for nt in variants_by_h[k][pi].keys() if nt not in {'N'}})
+                if n_variants >= 2:
+                    flag = True
+                    flag_details[-1] += str(pi) + ":" + str(dict(variants_by_h[k][pi])) + ";"
+            msa_flagged_primers.append(flag)
+        df['msa.flagged.primers'] = msa_flagged_primers
+        df['msa.flagged.primers.desc'] = flag_details
+        df['n.msa.flagged.primers.desc'] = [len(x.split(";")) - 1 for x in df['msa.flagged.primers.desc']]
+
+
         # scan whether primers intersect with other viruses
         other_viruses_dir = join(input_dir, "other_viruses")
         column_names_by_f = DataFrameAnalyzer.get_dict(DataFrameAnalyzer.read_tsv(join(input_dir, 'other_viruses',
@@ -86,7 +151,7 @@ def run(pmin, pmax, gcmin, gcmax, tm, amplicon_min, amplicon_max, fasta_id, inpu
                 fa = FastaAnalyzer.get_fastas(join(other_viruses_dir, f))
                 for ri, r in df.iterrows():
                     a = r['seq']
-                    if ri % 100 == 0:
+                    if ri % 200 == 0:
                         print(ri, 'primers out of', df.shape[0], 'matched against', column_names_by_f[f], a)
                     cmp_a = SequenceMethods.get_complementary_seq(a)
                     n_best_match = 0
@@ -106,6 +171,7 @@ def run(pmin, pmax, gcmin, gcmax, tm, amplicon_min, amplicon_max, fasta_id, inpu
             df['best.hit.others'] = df[[c for c in df if c in column_names_by_f.values()]].max(axis=1)
         else:
             df['best.hit.others'] = -1
+
 
         print('Saving selected primers:')
         DataFrameAnalyzer.to_tsv(df, join(output_dir, "%s.tsv.gz" % fasta_id))
@@ -234,6 +300,27 @@ def run(pmin, pmax, gcmin, gcmax, tm, amplicon_min, amplicon_max, fasta_id, inpu
 
             for qi, q in enumerate(sub_queries):
                 df2['z.score.dG.%s' % q] = (df2['dG.LFold.%s' % q] - lm.predict(np.array(df2[q].str.len()).reshape(-1, 1))) / sigma
+
+
+
+        # check for MSA alternate variants within the primers
+        msa_flagged_primers = []
+        flag_details = []
+        for ri, r in df2.iterrows():
+            flag = False
+            flag_details.append('')
+            k = r['cds'].split(" ")[1][1:-1]
+            start, end, primer_len = int(r["vi"].split("_")[-2]), int(r["vj"].split("_")[-2]), int(r["vi"].split("_")[-1])
+            for pi in range(start, end + primer_len):
+                n_variants = len({nt for nt in variants_by_h[k][pi].keys() if nt not in {'N'}})
+                if n_variants >= 2:
+                    flag = True
+                    flag_details[-1] += str(pi) + ":" + str(dict(variants_by_h[k][pi])) + ";"
+            msa_flagged_primers.append(flag)
+        df2['msa.flagged.primers'] = msa_flagged_primers
+        df2['msa.flagged.primers.desc'] = flag_details
+        df2['n.msa.flagged.primers.desc'] = [len(x.split(";")) - 1 for x in df2['msa.flagged.primers.desc']]
+
 
         DataFrameAnalyzer.to_tsv_gz(df2, join(output_dir, "%s_pairs.tsv.gz" % fasta_id))
         df2.to_excel(join(output_dir, "%s_pairs.xlsx" % fasta_id), index=None)
