@@ -8,6 +8,7 @@ Fast analyzer for designing primer pairs with 2D-stable structure
 import tempfile
 from difflib import SequenceMatcher
 from itertools import combinations
+from itertools import product
 import numpy as np
 import pandas as pd
 import utilities
@@ -21,54 +22,66 @@ def run(pmin, pmax, gcmin, gcmax, tm, amplicon_min, amplicon_max, fasta_id, inpu
 
     print('Reading MSA data (for mismatches mapping)')
     # calculate iteratively an MSA by calling muscle
-    msa_path = join(input_dir, 'lcl_mod_emb-LR757997.1 and 105 other sequences.aln')
+    # msa_path = join(input_dir, 'lcl_mod_emb-LR757997.1 and 105 other sequences.aln')
+    msa_path = join(input_dir, 'covid_other_seqs_BIG.fa')
+    msa_full = FastaAnalyzer.get_fastas(msa_path)
+    msa_path_fast = join(input_dir, 'debug/covid_other_seqs_BIG_backtrail_to_gap500.fa')
+    debug = False
+
     msa_dir = join(input_dir, 'msa')
     if not exists(msa_dir):
         mkdir(msa_dir)
-    msa_bkp = join(msa_dir, 'lcl_mod_emb-LR757997.1 and 105 other sequences_n_GCF_009858895.2_CDS.fasta')
+    msa_bkp = join(msa_dir, basename(msa_path).replace(".aln", ".fasta"))
     if not exists(msa_bkp):
         sequences = FastaAnalyzer.get_fastas(join(input_dir, "%s.fasta" % fasta_id))
         for h, s in sequences:
             next_fa = join(msa_dir, h.split(" ")[1][1:-1] + ".afa")
-            print(exists(next_fa), next_fa)
+            # print(exists(next_fa), next_fa)
             if not exists(next_fa):
                 fa_in = join(msa_dir, h.split(" ")[1][1:-1] + ".fa")
                 FastaAnalyzer.write_fasta_from_sequences([[h, s]], fa_in)
-                muscle_cmd = 'muscle -profile -in1 %s -in2 \"%s\" -out %s' % (fa_in, msa_path, next_fa)
+                muscle_cmd = 'muscle -profile -in1 %s -in2 \"%s\" -out %s' % (fa_in, msa_path_fast, next_fa)
                 print(muscle_cmd)
                 system(muscle_cmd)
 
     # read msa info: This dictionary will be referred to during the last step
     variants_by_h = {}
     for f in listdir(msa_dir):
+        print(f)
         if not f.endswith('.afa'):
             continue
         code = f.replace(".afa", '')
         curr_position = 0
         msa = FastaAnalyzer.get_fastas(join(msa_dir, f))
-        for si, nt in enumerate(msa[0][1]):
+
+        # print(len(msa), len(msa_full))
+        # the msa hits has to have the same size as the full MSA
+        assert len(msa[0][1]) == len(msa_full[0][1])
+
+        for si, nt in enumerate(msa_full[0][1]):
+            if si % 1000 == 0:
+                print('reading MSA variants by columns', si, 'out of', len(msa_full[0][1]))
             if nt != '-':
                 if not code in variants_by_h:
                     variants_by_h[code] = {}
-                variants_by_h[code][curr_position] = Counter([s2[si] for h2, s2 in msa])
+                variants_by_h[code][curr_position] = Counter([s2[si] for h2, s2 in msa_full])
                 curr_position += 1
 
     hits_by_h2 = {}
     for h, s in sequences:
-        print(h, len(s))
+        # print(h, len(s))
         for h2, s2 in msa:
             if s in s2.replace("-", ''):
-                print(h, h2, 'found')
+                # print(h, h2, 'found')
                 hits_by_h2[h2] = 1 if not h2 in hits_by_h2 else hits_by_h2[h2] + 1
-
-
 
     print('Primer pairs generator + with background genome check (step 1) and RNA secondary structure check (step 2)')
     sequences = FastaAnalyzer.get_fastas(join(input_dir, "%s.fasta" % fasta_id), as_dict=True)
-    tagseq = kwargs.get('tagseq', '')
+    tagseqs = FastaAnalyzer.get_fastas(kwargs.get('tags', 0))
     overwrite1 = kwargs.get('overwrite1', 0)
     overwrite2 = kwargs.get('overwrite2', 0)
-
+    overwrite3 = kwargs.get('overwrite3', 0)
+    overwrite4 = kwargs.get('overwrite4', 0)
 
 
     # RULES 1-8 + VIRUSES COMPETITION
@@ -106,7 +119,7 @@ def run(pmin, pmax, gcmin, gcmax, tm, amplicon_min, amplicon_max, fasta_id, inpu
 
                         rule4 = seq[-1] == 'A'
 
-                        if not rule1 or not rule2 or not rule3 or not rule4:
+                        if not rule1 or not rule2 or rule3 or not rule4:
                             continue
                         table.append([fasta_id, h, si, primer_len, seq, direction, gc, primer_tm,
                                       rule1, rule2, rule3, rule4, gc5prime, gc3prime])
@@ -181,7 +194,6 @@ def run(pmin, pmax, gcmin, gcmax, tm, amplicon_min, amplicon_max, fasta_id, inpu
     df = DataFrameAnalyzer.read_tsv_gz(bkp_path_df)
     best_hit_by_k = DataFrameAnalyzer.get_dict(df, 'k', 'best.hit.others')
 
-
     # Analyze group primers by pairs and filter ones that are not good amplicon length min-max
     # and Run LinearFold to get score estimates
     print('STEP 2')
@@ -209,8 +221,9 @@ def run(pmin, pmax, gcmin, gcmax, tm, amplicon_min, amplicon_max, fasta_id, inpu
             df2['seq.%s' % symbol] = [iloc_by_idx[r[symbol]]['seq'] for ri, r in df2.iterrows()]
             df2['gc.%s' % symbol] =  df2['seq.%s' % symbol].apply(SequenceMethods.get_gc_content)
             df2['direction.%s' % symbol] = [direction_by_idx[r[symbol]] for ri, r in df2.iterrows()]
-            df2['tag.seq.%s' % symbol] = tagseq + df2['seq.%s' % symbol]
 
+            for tag_h, tag_s in tagseqs:
+                df2['%s.seq.%s' % (tag_h, symbol)] = tag_s + df2['seq.%s' % symbol]
 
         assert sum(df2['i'].map(faname_by_idx) != df2['j'].map(faname_by_idx)) == 0
 
@@ -219,34 +232,43 @@ def run(pmin, pmax, gcmin, gcmax, tm, amplicon_min, amplicon_max, fasta_id, inpu
                                   df2['vi'].str.split("_").str[-2].astype(int) + 1
         df2 = df2[df2['amplicon.len.idx'] > 0]
 
-        # find the strongest local match between primer pairs
-        longest_local_match = []
-        for ri, r in df2.iterrows():
-            if ri % 100 == 0:
-                print("# Scanning for local primer pair hits", ri, 'out of', df2.shape[0])
-            a, b = r['seq.i'], r['seq.j']
-            cmp_b = SequenceMethods.get_complementary_seq(b)
-            match_a_cmpb = [a, cmp_b, SequenceMatcher(None, a, cmp_b, autojunk=False).find_longest_match(0, len(a), 0, len(b))]
-            longest_local_match.append(a[match_a_cmpb[-1].a: match_a_cmpb[-1].a + match_a_cmpb[-1].size] + "/" + \
-                                       SequenceMethods.get_complementary_seq(cmp_b[match_a_cmpb[-1].b:  match_a_cmpb[-1].b +
-                                                                                                        match_a_cmpb[-1].size]))
+        # find the strongest local match between primer pairs with and without tags
+        names = ['seq.i', 'seq.j']
+        names += [((tag_h + ".") if tag_h is not None else + '') + c for tag_h, tag_s in tagseqs for c in names]
 
-        df2['longest.local.match'] = longest_local_match
-        df2['longest.local.match.len'] = df2['longest.local.match'].str.split("/").str[0].str.len()
+        for ca, cb in product(names, repeat=2):
+            print(ca, cb)
+            longest_local_match = []
+            for ri, r in df2.iterrows():
+                if ri % 100 == 0:
+                    print("# Scanning for local primer pair hits", ri, 'out of', df2.shape[0])
+                a, b = r[ca], r[cb]
+
+                cmp_b = SequenceMethods.get_complementary_seq(b)
+                match_a_cmpb = [a, cmp_b, SequenceMatcher(None, a, cmp_b, autojunk=False).find_longest_match(0, len(a), 0, len(b))]
+                longest_local_match.append(a[match_a_cmpb[-1].a: match_a_cmpb[-1].a + match_a_cmpb[-1].size] + "/" + \
+                                           SequenceMethods.get_complementary_seq(cmp_b[match_a_cmpb[-1].b:  match_a_cmpb[-1].b +
+                                                                                                            match_a_cmpb[-1].size]))
+
+
+            df2['match.%s.%s' % (ca, cb)] = longest_local_match
+            df2['match.len.%s.%s' % (ca, cb)] = df2['match.%s.%s' % (ca, cb)].str.split("/").str[0].str.len()
 
 
         # map the best hit with other viruses
         df2['best.hit.others'] = [max(a, b) for a, b in zip(list(df2['vi'].map(best_hit_by_k)),
                                                             list(df2['vj'].map(best_hit_by_k)))]
 
-        df2 = df2[df2['longest.local.match.len'].abs() <= 5]
+        # df2 = df2[df2['longest.local.match.len'].abs() <= 5]
 
         df2['amplicon.fwd'] = [sequences[r['cds']][int(r['vi'].split("_")[-2]):int(r['vj'].split("_")[-2]) +
                                                                                int(r['vj'].split("_")[-1])]
                                for ri, r in df2.iterrows()]
         df2['amplicon.rev'] = df2['amplicon.fwd'].apply(SequenceMethods.get_complementary_seq)
-        df2['tag.amplicon.fwd'] = tagseq + df2['amplicon.fwd']
-        df2['tag.amplicon.rev'] = tagseq + df2['amplicon.rev']
+
+        for tag_h, tag_s in tagseqs:
+            df2['%s.amplicon.fwd' % tag_h] = tag_s + df2['amplicon.fwd']
+            df2['%s.amplicon.rev' % tag_h] = tag_s + df2['amplicon.rev']
 
         df2['amplicon.len.str'] = df2['vj'].str.split("_").str[-2].astype(int) -\
                                   df2['vi'].str.split("_").str[-2].astype(int) + \
@@ -255,9 +277,11 @@ def run(pmin, pmax, gcmin, gcmax, tm, amplicon_min, amplicon_max, fasta_id, inpu
         tmppath = tempfile.mkstemp()[1]
         inpath = tmppath
 
-        queries_linearfold = ['tag.seq.i', 'tag.seq.j',
-                              'amplicon.fwd', 'amplicon.rev',
-                              'tag.amplicon.fwd', 'tag.amplicon.rev']
+        queries_linearfold = ['seq.i', 'seq.j', 'amplicon.fwd', 'amplicon.rev']
+        tag_queries = []
+        for tag_h, tag_s in tagseqs:
+            tag_queries  += [tag_h + "." + q for q in queries_linearfold]
+        queries_linearfold += tag_queries
 
         linearfold = '%s -V' % linearfold_bin
         inpath = tmppath + ".in"
@@ -279,7 +303,8 @@ def run(pmin, pmax, gcmin, gcmax, tm, amplicon_min, amplicon_max, fasta_id, inpu
         # do this twice (i) only for tag+primers and (ii) for tag+primer+amplicon
         # mean is estimated by linear model
         # more negative Z-scores = less reliable primers/amplicons due to unexpected stability
-        for sub_queries in queries_linearfold[:2], queries_linearfold[2:]:
+        for sub_queries in [q for q in queries_linearfold if 'seq' in q],\
+                           [q for q in queries_linearfold if 'amplicon' in q]:
             z_df = []
             for qi, q in enumerate(sub_queries):
                 print(q, q in df2)
@@ -301,31 +326,91 @@ def run(pmin, pmax, gcmin, gcmax, tm, amplicon_min, amplicon_max, fasta_id, inpu
             for qi, q in enumerate(sub_queries):
                 df2['z.score.dG.%s' % q] = (df2['dG.LFold.%s' % q] - lm.predict(np.array(df2[q].str.len()).reshape(-1, 1))) / sigma
 
+        DataFrameAnalyzer.to_tsv_gz(df2, join(output_dir, "%s_pairs_test.tsv.gz" % fasta_id))
+        df2.to_excel(join(output_dir, "%s_pairs_test.xlsx" % fasta_id), index=None)
 
+    else:
+        print('skip STEP 2 (file exists and overwrite2=False)')
 
+    if overwrite3:
+        # step 3: add mismatches with others viruses, precalculated from first table ( If not in path2 already )
+        print('# STEP 3: final verify on best.hit.others')
+        df2 = DataFrameAnalyzer.read_tsv_gz(join(output_dir, "%s_pairs.tsv.gz" % fasta_id))
+        df = DataFrameAnalyzer.read_tsv_gz(bkp_path_df)
+        best_hit_by_k = DataFrameAnalyzer.get_dict(df, 'k', 'best.hit.others')
+
+        df2 = DataFrameAnalyzer.read_tsv_gz(join(output_dir, "%s_pairs.tsv.gz" % fasta_id))
+        df2.to_excel(join(output_dir, "%s_pairs.xlsx" % fasta_id), index=None)
+
+        # map the best hit with other viruses
+        df2['best.hit.others.vi'] = [a for a in list(df2['vi'].map(best_hit_by_k))]
+        df2['best.hit.others.vj'] = [a for a in list(df2['vj'].map(best_hit_by_k))]
+        df2['best.hit.others'] = df2[['best.hit.others.vi', 'best.hit.others.vi']].max(axis=1)
+
+        DataFrameAnalyzer.to_tsv_gz(df2, join(output_dir, "%s_pairs.tsv.gz" % fasta_id))
+        df2.to_excel(join(output_dir, "%s_pairs.xlsx" % fasta_id), index=None)
+
+    if overwrite4:
+        print('# STEP 4: Sequence variation')
+        df2 = DataFrameAnalyzer.read_tsv_gz(join(output_dir, "%s_pairs.tsv.gz" % fasta_id))
         # check for MSA alternate variants within the primers
         msa_flagged_primers = []
+
+        variants_by_h_compressed = {}
+        for k in variants_by_h:
+            print(k)
+            variants_by_h_compressed[k] = {}
+            for pi in sorted(variants_by_h[k]):
+                if pi % 1000 == 0:
+                    print(pi, k)
+                variants_by_h_compressed[k][pi] = Counter([nt.upper() for nt in variants_by_h[k][pi]
+                                                           for n in range(variants_by_h[k][pi][nt]) if nt.upper() in {'A', 'C', 'G', 'T'}])
         flag_details = []
         for ri, r in df2.iterrows():
+            if ri % 100 == 0:
+                print(ri, 'out of', df2.shape[0])
             flag = False
             flag_details.append('')
             k = r['cds'].split(" ")[1][1:-1]
             start, end, primer_len = int(r["vi"].split("_")[-2]), int(r["vj"].split("_")[-2]), int(r["vi"].split("_")[-1])
-            for pi in range(start, end + primer_len):
-                n_variants = len({nt for nt in variants_by_h[k][pi].keys() if nt not in {'N'}})
+            for pi in range(start, min(end + primer_len, len(variants_by_h_compressed[k]))):
+                n_variants = len({nt.upper() for nt in variants_by_h_compressed[k][pi].keys() if nt.upper() in 'ACGT'})
                 if n_variants >= 2:
                     flag = True
-                    flag_details[-1] += str(pi) + ":" + str(dict(variants_by_h[k][pi])) + ";"
+                    flag_details[-1] += str(pi) + ":" + str(dict(variants_by_h_compressed[k][pi])) + ";"
             msa_flagged_primers.append(flag)
         df2['msa.flagged.primers'] = msa_flagged_primers
         df2['msa.flagged.primers.desc'] = flag_details
         df2['n.msa.flagged.primers.desc'] = [len(x.split(";")) - 1 for x in df2['msa.flagged.primers.desc']]
 
-
         DataFrameAnalyzer.to_tsv_gz(df2, join(output_dir, "%s_pairs.tsv.gz" % fasta_id))
         df2.to_excel(join(output_dir, "%s_pairs.xlsx" % fasta_id), index=None)
-    else:
-        print('skip STEP 2 (file exists and overwrite2=False')
+
+
+        df = DataFrameAnalyzer.read_tsv_gz(join(output_dir, "%s.tsv.gz" % fasta_id))
+        # check for MSA alternate variants within the primers
+        msa_flagged_primers = []
+        flag_details = []
+        for ri, r in df.iterrows():
+            if ri % 100 == 0:
+                print(ri, 'out of', df2.shape[0])
+
+            flag = False
+            flag_details.append('')
+            k = r['fa.name'].split(" ")[1][1:-1]
+            for pi in range(r['fasta.position'], r['fasta.position'] + r['primer.len']):
+                n_variants = len({nt for nt in variants_by_h_compressed[k][pi].keys() if nt not in {'N'}})
+                if n_variants >= 2:
+                    flag = True
+                    flag_details[-1] += str(pi) + ":" + str(dict(variants_by_h_compressed[k][pi])) + ";"
+            msa_flagged_primers.append(flag)
+        df['msa.flagged.primers'] = msa_flagged_primers
+        df['msa.flagged.primers.desc'] = flag_details
+        df['n.msa.flagged.primers.desc'] = [len(x.split(";")) - 1 for x in df['msa.flagged.primers.desc']]
+        print('Saving selected primers:')
+        DataFrameAnalyzer.to_tsv(df, join(output_dir, "%s.tsv.gz" % fasta_id))
+        df.to_excel(join(output_dir, "%s.xlsx" % fasta_id))
+
 
 if __name__ == '__main__':
     import argparse
@@ -345,12 +430,14 @@ if __name__ == '__main__':
     parser.add_argument("--ampliconmax", type=int, default=240, help='minimum amplicon length (def. 240)')
 
     # Use the T7 sequence as a default tag
-    parser.add_argument('--tagprimer', type=str, help='tag for primers (def. T7 sequence, AATTCTAATACGACTCACTATAGGGAGAAGG)',
-                        default='AATTCTAATACGACTCACTATAGGGAGAAGG')
+    parser.add_argument('--tags', type=str, help='Multi fasta file receiving primers for analysis',
+                        default='./input/tags/tags.fa')
 
     parser.add_argument("--ntest", type=int, default=None, help='for load tests. Default is None (--ntest 10 = test for 10 primer pairs and finish')
     parser.add_argument("--overwrite1", action='store_true', help='Force repeat single primer generation and background viruses scanning step', default=0)
     parser.add_argument("--overwrite2", action='store_true', help='Force repeat 1-2 primer pairs and secondary structure asssessment', default=0)
+    parser.add_argument("--overwrite3", action='store_true', help='Force adding best hit with other viruses from table 1 in table 2', default=0)
+    parser.add_argument("--overwrite4", action='store_true', help='Force adding nucleotide variation from original table', default=0)
 
     parser.add_argument("-p", "--progressbar", action='store_true', default=False,
                         help='Show progress bar (not implemented in deployed version).')
@@ -365,5 +452,5 @@ if __name__ == '__main__':
     opts = parser.parse_args()
 
     run(opts.pmin, opts.pmax, opts.gcmin, opts.gcmax, opts.tmmin, opts.ampliconmin, opts.ampliconmax,
-        opts.fastaid, opts.inputdir, opts.outputdir, opts.linearfold, opts.checkothers, ntest=opts.ntest, tag=opts.tagprimer,
-        overwrite1=opts.overwrite1, overwrite2=opts.overwrite2)
+        opts.fastaid, opts.inputdir, opts.outputdir, opts.linearfold, opts.checkothers, ntest=opts.ntest, tags=opts.tags,
+        overwrite1=opts.overwrite1, overwrite2=opts.overwrite2, overwrite3=opts.overwrite3, overwrite4=opts.overwrite4)
